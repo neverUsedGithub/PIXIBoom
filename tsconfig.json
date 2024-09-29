@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "verbatimModuleSyntax": true,
+    "lib": ["DOM", "ESNext"],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  }
+}
