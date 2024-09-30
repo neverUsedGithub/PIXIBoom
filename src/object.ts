@@ -41,8 +41,9 @@ export class GameObject extends EventEmitter<{ shape: [container: Container]; up
   public id: number = gameObjectId++;
   public children: GameObject[] = [];
 
-  private comps: Comp[] = [];
   private tags: Set<string> = new Set();
+  private comps: Map<string, Comp> = new Map();
+  private anonymousComps: Comp[] = [];
 
   private pixiContainer = new Container();
   private pixiShape: Container | null = null;
@@ -66,11 +67,14 @@ export class GameObject extends EventEmitter<{ shape: [container: Container]; up
 
   update() {
     this.emit("update");
+    this.comps.forEach((comp) => comp.update && comp.update());
 
-    for (let i = 0; i < this.comps.length; i++) {
-      const update = this.comps[i].update;
-      if (update) update();
-    }
+    for (
+      let i = 0, comp: Comp = this.anonymousComps[0];
+      i < this.anonymousComps.length;
+      comp = this.anonymousComps[++i]
+    )
+      comp.update && comp.update();
 
     for (let i = 0; i < this.children.length; i++) this.children[i].update();
   }
@@ -81,10 +85,11 @@ export class GameObject extends EventEmitter<{ shape: [container: Container]; up
       return;
     }
 
-    this.comps.push(comp);
+    if (comp.id && this.comps.has(comp.id))
+      throw new Error(`component '${comp.id}' has already been added to this game object.`);
 
-    if (comp.id && this.tags.has(comp.id))
-      throw new Error(`component/tag '${comp.id}' has already been added to this game object.`);
+    if (comp.id) this.comps.set(comp.id, comp);
+    else this.anonymousComps.push(comp);
 
     const props = Object.getOwnPropertyDescriptors(comp);
     for (const prop in props) {
@@ -97,8 +102,6 @@ export class GameObject extends EventEmitter<{ shape: [container: Container]; up
       Object.defineProperty(this, prop, props[prop]);
     }
 
-    if (comp.id) this.tags.add(comp.id);
-
     if (comp.update) comp.update = comp.update.bind(this);
 
     if (comp.add) {
@@ -108,15 +111,20 @@ export class GameObject extends EventEmitter<{ shape: [container: Container]; up
   }
 
   unuse(id: string) {
-    if (this.tags.has(id)) {
-      this.tags.delete(id);
-
-      for (let i = this.comps.length - 1; i > 0; i--) if (this.comps[i].id === id) this.comps.splice(i, 1);
-    }
+    this.tags.delete(id);
+    this.comps.delete(id);
   }
 
   add<const T extends CompList>(components: T): GameObj<CompListToComps<T>> {
     return new GameObject(this.context, this, components) as any;
+  }
+
+  is(id: string): boolean {
+    return this.tags.has(id) || this.comps.has(id);
+  }
+
+  get<T extends Comp>(id: string): T | null {
+    return (this.comps.get(id) as T | undefined) ?? null;
   }
 
   setShape(container: Container) {
